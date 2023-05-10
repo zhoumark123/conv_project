@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Convolution</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        label {
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+        }
+        canvas {
+            display: block;
+            margin: 20px 0;
+        }
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Convolution</h1>
+    <input type="file" id="inputImage" accept="image/*">
+    <label for="inputImage">Choose Image</label>
+    
+    <div class="canvas-container">
+        <div id="canvasContainer" style="position: relative;">
+            <canvas id="hoverCanvas" style="position: absolute; top: 0; left: 0;"></canvas>
+            <canvas id="originalCanvas"></canvas>
+            
+        </div>
+        <canvas id="magnifiedCanvas"></canvas>
+        <canvas id="resultCanvas"></canvas>
+        
+    </div>
+
+    <h3>Enter Convolution Kernel:</h3>
+    <table id="kernelTable">
+        <tr>
+            <td><input type="number" value="0"></td>
+            <td><input type="number" value="0"></td>
+            <td><input type="number" value="0"></td>
+        </tr>
+        <tr>
+            <td><input type="number" value="0"></td>
+            <td><input type="number" value="0"></td>
+            <td><input type="number" value="0"></td>
+        </tr>
+        <tr>
+            <td><input type="number" value="0"></td>
+            <td><input type="number" value="0"></td>
+            <td><input type="number" value="0"></td>
+        </tr>
+    </table>
+    <h3>Select Example Kernel:</h3>
+    <select id="exampleKernels" onchange="loadExampleKernel()">
+        <option value="">--Choose Example Kernel--</option>
+        <option value="horizontal">Horizontal Edge Detection</option>
+        <option value="vertical">Vertical Edge Detection</option>
+        <option value="blur">Blurring</option>
+        <option value="Gaussian">Gaussian</option>
+    </select>
+    <button onclick="applyConvolution(getKernel()); /*animateConvolution();*/">Apply Convolution</button>
+    <button onclick="applySobelEdgeDetection()">Apply Sobel Edge Detection</button>
+    <!--<button onclick="applyCannyEdgeDetection()">Apply Canny Edge Detection</button>-->
+    <canvas id="convolvedCanvas"></canvas>
+    <script>
+        let imageUploaded = false;
+        const inputImage = document.getElementById('inputImage');
+        const originalCanvas = document.getElementById('originalCanvas');
+        const convolvedCanvas = document.getElementById('convolvedCanvas');
+        const kernelTable = document.getElementById('kernelTable');
+        const magnifiedCanvas = document.getElementById('magnifiedCanvas');
+        const resultCanvas = document.getElementById('resultCanvas');
+        const targetWidth = 5;
+        const targetHeight = 5;
+        let magnifiedPixelSize = 20;
+        let resizedImageData;
+        const hoverCanvas = document.getElementById('hoverCanvas');
+        const hoverCtx = hoverCanvas.getContext('2d');
+        const hoverSize = 15;
+        magnifiedCanvas.width = hoverSize * magnifiedPixelSize;  //change this and below
+        magnifiedCanvas.height = hoverSize * magnifiedPixelSize;
+        resultCanvas.width = (hoverSize - 2) * magnifiedPixelSize;
+        resultCanvas.height = (hoverSize - 2) * magnifiedPixelSize;
+        const sobelXKernel = [
+                [-1, 0, 1],
+                [-2, 0, 2],
+                [-1, 0, 1]
+            ];
+        const sobelYKernel = [
+            [-1, -2, -1],
+            [0, 0, 0],
+            [1, 2, 1]
+        ];
+        
+
+
+        let mouseX = 0;
+        let mouseY = 0;
+        let clicked = false;
+
+        originalCanvas.addEventListener('mousemove', (e) => {
+            if (!imageUploaded) return;
+            if (!clicked) {
+                const canvasRect = originalCanvas.getBoundingClientRect();
+                mouseX = e.clientX - canvasRect.left;
+                mouseY = e.clientY - canvasRect.top;
+                drawHoverBox();
+            }
+        });
+
+
+        originalCanvas.addEventListener('click', () => {
+            if (!clicked) {
+                clicked = true;
+                return_values = updateMagnifiedImage();
+                magnifiedCtx = return_values[0];
+                magnifiedImageData = return_values[1];
+                animateConvolution(magnifiedCtx, magnifiedImageData);
+            } else {
+                clicked = false;
+            }
+        });
+        function applyCannyEdgeDetection() {
+            const originalCtx = originalCanvas.getContext('2d');
+            const originalImageData = originalCtx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
+            const grayscaleImageData = originalCtx.createImageData(originalImageData);
+            const edgeImageData = originalCtx.createImageData(originalImageData);
+
+            // Convert image to grayscale
+            for (let i = 0; i < originalImageData.data.length; i += 4) {
+                const gray = 0.2989 * originalImageData.data[i] +
+                            0.5870 * originalImageData.data[i + 1] +
+                            0.1140 * originalImageData.data[i + 2];
+                grayscaleImageData.data[i] = gray;
+                grayscaleImageData.data[i + 1] = gray;
+                grayscaleImageData.data[i + 2] = gray;
+                grayscaleImageData.data[i + 3] = originalImageData.data[i + 3];
+            }
+
+            // Apply Gaussian blur to the grayscale image
+            const gaussianKernel = [
+                [1/16, 2/16, 1/16],
+                [2/16, 4/16, 2/16],
+                [1/16, 2/16, 1/16]
+            ];
+            const blurredImageData = originalCtx.createImageData(grayscaleImageData);
+            applyConvolutionKernel(grayscaleImageData, blurredImageData, gaussianKernel);
+
+            // Compute gradient and direction
+            const gradientX = originalCtx.createImageData(grayscaleImageData);
+            const gradientY = originalCtx.createImageData(grayscaleImageData);
+            applyConvolutionKernel(blurredImageData, gradientX, sobelXKernel);
+            applyConvolutionKernel(blurredImageData, gradientY, sobelYKernel);
+
+            const gradient = new Float32Array(grayscaleImageData.data.length / 4);
+            const direction = new Uint8Array(grayscaleImageData.data.length / 4);
+
+            for (let i = 0; i < grayscaleImageData.data.length; i += 4) {
+                const x = gradientX.data[i];
+                const y = gradientY.data[i];
+                gradient[i / 4] = Math.sqrt(x * x + y * y);
+                direction[i / 4] = Math.round((Math.atan2(y, x) + Math.PI) * 4 / Math.PI) % 4;
+            }
+
+            // Non-maximum suppression
+            const suppressedGradient = new Float32Array(gradient);
+            const width = originalImageData.width;
+            const height = originalImageData.height;
+
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const i = y * width + x;
+                    const dir = direction[i];
+
+                    if ((dir === 0 && (gradient[i] <= gradient[i - 1] || gradient[i] <= gradient[i + 1])) ||
+                        (dir === 1 && (gradient[i] <= gradient[i - width - 1] || gradient[i] <= gradient[i + width + 1])) ||
+                        (dir === 2 && (gradient[i] <= gradient[i - width] || gradient[i] <= gradient[i + width])) ||
+                        (dir === 3 && (gradient[i] <= gradient[i - width + 1] || gradient[i] <= gradient[i + width - 1]))) {
+                        suppressedGradient[i] = 0;
+                    }
+                }
+            }
+
+            // Double threshold
+            const highThreshold = 100;
+            const lowThreshold = 50;
+            const edgeIntensities = new Uint8Array(suppressedGradient.length);
+            const strongEdges = [];
+
+            for (let i = 0; i < suppressedGradient.length; i++) {
+                if (suppressedGradient[i] >= highThreshold) {
+                    edgeIntensities[i] = 255;
+                    strongEdges.push(i);
+                } else if (suppressedGradient[i] >= lowThreshold) {
+                    edgeIntensities[i] = 128;
+                }
+            }
+
+            // Edge tracking by hysteresis
+            while (strongEdges.length) {
+                const i = strongEdges.pop();
+                const x = i % width;
+                const y = Math.floor(i / width);
+
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        if (dx === 0 && dy === 0) continue;
+                        const neighbor = (y + dy) * width + (x + dx);
+                        if (edgeIntensities[neighbor] === 128) {
+                            edgeIntensities[neighbor] = 255;
+                            strongEdges.push(neighbor);
+                        }
+                    }
+                }
+            }
+
+            for (let i = 0; i < edgeIntensities.length; i++) {
+                const magnitude = edgeIntensities[i] === 255 ? 255 : 0;
+                const dataIndex = i * 4;
+                edgeImageData.data[dataIndex] = magnitude;
+                edgeImageData.data[dataIndex + 1] = magnitude;
+                edgeImageData.data[dataIndex + 2] = magnitude;
+                edgeImageData.data[dataIndex + 3] = originalImageData.data[dataIndex + 3];
+            }
+
+            convolvedCanvas.getContext('2d').putImageData(edgeImageData, 0, 0);
+        }
+        function drawHoverBox() {
+            hoverCtx.clearRect(0, 0, hoverCanvas.width, hoverCanvas.height);
+            hoverCtx.strokeStyle = 'red';
+            hoverCtx.lineWidth = 1;
+            hoverCtx.strokeRect(mouseX, mouseY, hoverSize, hoverSize);
+        }
+        function updateMagnifiedImage() {
+            const originalCtx = originalCanvas.getContext('2d');
+            const magnifiedCtx = magnifiedCanvas.getContext('2d');
+            magnifiedCanvas.width = hoverSize * magnifiedPixelSize;
+            magnifiedCanvas.height = hoverSize * magnifiedPixelSize;
+
+            const pixelX = Math.floor(mouseX / originalCanvas.scrollWidth * originalCanvas.width);
+            const pixelY = Math.floor(mouseY / originalCanvas.scrollHeight * originalCanvas.height);
+            const magnifiedImageData = originalCtx.getImageData(pixelX, pixelY, hoverSize, hoverSize);
+            for (let y = 0; y < hoverSize; y++) {
+                for (let x = 0; x < hoverSize; x++) {
+                    const pixelColor = originalCtx.getImageData(pixelX + x, pixelY + y, 1, 1);
+                    magnifiedCtx.fillStyle = `rgba(${pixelColor.data[0]}, ${pixelColor.data[1]}, ${pixelColor.data[2]}, ${pixelColor.data[3] / 255})`;
+                    magnifiedCtx.fillRect(x * magnifiedPixelSize, y * magnifiedPixelSize, magnifiedPixelSize, magnifiedPixelSize);
+                    
+                }
+            }
+            return [magnifiedCtx, magnifiedImageData]
+        }
+        
+        inputImage.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            const ctx = originalCanvas.getContext('2d');
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.onload = () => {
+                const fixedWidth = 600;
+                const aspectRatio = img.height / img.width;
+                const fixedHeight = fixedWidth * aspectRatio;
+
+                originalCanvas.width = fixedWidth;
+                originalCanvas.height = fixedHeight;
+                ctx.drawImage(img, 0, 0, fixedWidth, fixedHeight);
+                convolvedCanvas.width = fixedWidth;
+                convolvedCanvas.height = fixedHeight;
+                hoverCanvas.width = originalCanvas.width;
+                hoverCanvas.height = originalCanvas.height;
+                hoverCanvas.style.pointerEvents = 'none';
+            }
+            resizedImageData = resizeImage(img, targetWidth, targetHeight);
+            imageUploaded = true;
+        });
+        function resizeImage(img, targetWidth, targetHeight) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = targetWidth;
+            tempCanvas.height = targetHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(img, 0, 0, targetWidth, targetHeight);
+            return tempCtx.getImageData(0, 0, targetWidth, targetHeight);
+        }
+        function loadExampleKernel() {
+            const exampleKernels = {
+                horizontal: [
+                    [1, 2, 1],
+                    [0, 0, 0],
+                    [-1, -2, -1],
+                ],
+                vertical: [
+                    [1, 0, -1],
+                    [2, 0, -2],
+                    [1, 0, -1],
+                ],
+                blur: [
+                    [1 / 9, 1 / 9, 1 / 9],
+                    [1 / 9, 1 / 9, 1 / 9],
+                    [1 / 9, 1 / 9, 1 / 9],
+                ],
+                Gaussian: [
+                    [1/16,  2/16,  1/16],
+                    [2/16,  4/16,  2/16],
+                    [1/16,  2/16,  1/16]
+                ]
+            };
+
+            const selectedKernel = document.getElementById("exampleKernels").value;
+            if (exampleKernels[selectedKernel]) {
+                const kernel = exampleKernels[selectedKernel];
+                for (let y = 0; y < kernelTable.rows.length; y++) {
+                    for (let x = 0; x < kernelTable.rows[y].cells.length; x++) {
+                        kernelTable.rows[y].cells[x].firstChild.value = kernel[y][x];
+                    }
+                }
+            }
+        }
+        function getKernel(){
+            const kernel = [];
+            for (const row of kernelTable.rows) {
+                const rowData = [];
+                for (const cell of row.cells) {
+                    rowData.push(parseFloat(cell.firstChild.value));
+                }
+                kernel.push(rowData);
+            }
+            return kernel
+        }
+        function applySobelEdgeDetection() {
+
+
+            const originalCtx = originalCanvas.getContext('2d');
+            const originalImageData = originalCtx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
+            const convolvedImageDataX = originalCtx.createImageData(originalImageData);
+            const convolvedImageDataY = originalCtx.createImageData(originalImageData);
+            const edgeImageData = originalCtx.createImageData(originalImageData);
+
+            applyConvolutionKernel(originalImageData, convolvedImageDataX, sobelXKernel);
+            applyConvolutionKernel(originalImageData, convolvedImageDataY, sobelYKernel);
+
+            for (let i = 0; i < originalImageData.data.length; i += 4) {
+                const gradientX = convolvedImageDataX.data[i];
+                const gradientY = convolvedImageDataY.data[i];
+                const magnitude = Math.sqrt(gradientX * gradientX + gradientY * gradientY); //Find the magnitude of gradient
+
+                edgeImageData.data[i] = magnitude;
+                edgeImageData.data[i + 1] = magnitude;
+                edgeImageData.data[i + 2] = magnitude;
+                edgeImageData.data[i + 3] = originalImageData.data[i + 3];
+            }
+
+            convolvedCanvas.getContext('2d').putImageData(edgeImageData, 0, 0);
+        }
+
+        function applyConvolution() {
+            const kernel = [];
+            for (const row of kernelTable.rows) {
+                const rowData = [];
+                for (const cell of row.cells) {
+                    rowData.push(parseFloat(cell.firstChild.value));
+                }
+                kernel.push(rowData);
+            }
+
+            const originalCtx = originalCanvas.getContext('2d');
+            const originalImageData = originalCtx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
+            const convolvedImageData = originalCtx.createImageData(originalImageData);
+
+            applyConvolutionKernel(originalImageData, convolvedImageData, kernel);
+
+            convolvedCanvas.getContext('2d').putImageData(convolvedImageData, 0, 0);
+        }
+
+        function applyConvolutionKernel(originalImageData, convolvedImageData, kernel) {
+            const kh = kernel.length;
+            const kw = kernel[0].length;
+            const khHalf = Math.floor(kh / 2);
+            const kwHalf = Math.floor(kw / 2);
+
+            for (let y = 0; y < originalCanvas.height; y++) {
+                for (let x = 0; x < originalCanvas.width; x++) {
+                    let rSum = 0, gSum = 0, bSum = 0;
+
+                    for (let ky = 0; ky < kh; ky++) {
+                        for (let kx = 0; kx < kw; kx++) {
+                            const pixelX = x + kx - kwHalf;
+                            const pixelY = y + ky - khHalf;
+
+                            if (pixelX >= 0 && pixelX < originalCanvas.width && pixelY >= 0 && pixelY < originalCanvas.height) {
+                                const pixelIndex = (pixelY * originalCanvas.width + pixelX) * 4;
+                                rSum += originalImageData.data[pixelIndex] * kernel[ky][kx];
+                                gSum += originalImageData.data[pixelIndex + 1] * kernel[ky][kx];
+                                bSum += originalImageData.data[pixelIndex + 2] * kernel[ky][kx];
+                            }
+                        }
+                    }
+
+                    const convolvedIndex = (y * originalCanvas.width + x) * 4;
+                    convolvedImageData.data[convolvedIndex] = rSum;
+                    convolvedImageData.data[convolvedIndex + 1] = gSum;
+                    convolvedImageData.data[convolvedIndex + 2] = bSum;
+                    convolvedImageData.data[convolvedIndex + 3] = originalImageData.data[convolvedIndex +3];
+                }
+            }
+        }
+        function drawResultGrid() {
+                const resultCtx = resultCanvas.getContext('2d');
+
+                // Clear the canvas and fill it with white color
+                resultCtx.fillStyle = 'white';
+                resultCtx.fillRect(0, 0, resultCanvas.width, resultCanvas.height);
+
+                // Draw grid lines
+                resultCtx.strokeStyle = 'black';
+                resultCtx.lineWidth = 1;
+                for (let i = 1; i < (hoverSize - 2); i++) {
+                    resultCtx.beginPath();
+                    resultCtx.moveTo(i * magnifiedPixelSize, 0);
+                    resultCtx.lineTo(i * magnifiedPixelSize, resultCanvas.height);
+                    resultCtx.stroke();
+
+                    resultCtx.beginPath();
+                    resultCtx.moveTo(0, i * magnifiedPixelSize);
+                    resultCtx.lineTo(resultCanvas.width, i * magnifiedPixelSize);
+                    resultCtx.stroke();
+                }
+        }
+        async function animateConvolution(magnifiedCtx, magnifiedImageData) {
+            const kernel = getKernel();
+           
+            //const originalCtx = originalCanvas.getContext('2d');
+            //const originalImageData = originalCtx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
+            //const originalImageData = resizedImageData
+            //const magnifiedCtx = magnifiedCanvas.getContext('2d');
+            //const magnifiedImageData = magnifiedCtx.getImageData(0, 0, magnifiedCanvas.width, magnifiedCanvas.height);
+            const resultCtx = resultCanvas.getContext('2d');
+            function drawGrid(ctx, canvasWidth, canvasHeight, gridSize, gridColor = 'black') {
+                ctx.beginPath();
+                for (let i = 1; i < canvasWidth / gridSize; i++) {
+                    ctx.moveTo(i * gridSize, 0);
+                    ctx.lineTo(i * gridSize, canvasHeight);
+                    ctx.moveTo(0, i * gridSize);
+                    ctx.lineTo(canvasWidth, i * gridSize);
+                }
+                ctx.strokeStyle = gridColor;
+                ctx.stroke();
+            }
+            // Draw grid lines
+            //drawGrid(magnifiedCtx, magnifiedCanvas.width, magnifiedCanvas.height, magnifiedPixelSize);
+            drawResultGrid();
+            for (let y = 0; y < (hoverSize - 2); y++) { //change
+                for (let x = 0; x < (hoverSize - 2); x++) {
+                    //magnifiedCtx.clearRect(0, 0, magnifiedCanvas.width, magnifiedCanvas.height);
+
+                    // Draw magnified region,
+                    // for (let i = 0; i < 10; i++) {
+                    //     for (let j = 0; j < 10; j++) {
+                    //         const pixelColor = magnifiedCtx.getImageData(x + j, y + i, 1, 1); //originalCtx
+                    //         magnifiedCtx.fillStyle = `rgba(${pixelColor.data[0]}, ${pixelColor.data[1]}, ${pixelColor.data[2]}, ${pixelColor.data[3] / 255})`;
+                    //         magnifiedCtx.fillRect(j * magnifiedPixelSize, i * magnifiedPixelSize, magnifiedPixelSize, magnifiedPixelSize);
+                    //     }
+                    // }
+                    drawGrid(magnifiedCtx, magnifiedCanvas.width, magnifiedCanvas.height, magnifiedPixelSize);
+
+                    // Draw sliding window
+                    magnifiedCtx.strokeStyle = 'red';
+                    magnifiedCtx.lineWidth = 2;
+                    magnifiedCtx.strokeRect(x * magnifiedPixelSize, y * magnifiedPixelSize, 3 * magnifiedPixelSize, 3 * magnifiedPixelSize);
+
+                    // Calculate the resulting pixel
+                    let rSum = 0, gSum = 0, bSum = 0;
+                    for (let ky = 0; ky < 3; ky++) {
+                        for (let kx = 0; kx < 3; kx++) {
+                            const width = magnifiedImageData.width;
+                            const height = magnifiedImageData.height;
+                            const pixelX = x + kx;
+                            const pixelY = y + ky;
+                            const pixelIndex = (pixelY * width + pixelX) * 4;
+                            console.log("hi")
+                            rSum += magnifiedImageData.data[pixelIndex] * kernel[ky][kx]; 
+                            gSum += magnifiedImageData.data[pixelIndex + 1] * kernel[ky][kx];
+                            bSum += magnifiedImageData.data[pixelIndex + 2] * kernel[ky][kx];
+                        }
+                    }
+
+                    // Update result canvas
+                    resultCtx.fillStyle = `rgba(${rSum}, ${gSum}, ${bSum}, 255)`;
+                    resultCtx.fillRect(x * magnifiedPixelSize, y * magnifiedPixelSize, magnifiedPixelSize, magnifiedPixelSize);
+
+                    // Wait for a while before the next step
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+            }
+        }
+        
+
+    
+
+        
+    </script>
+</body>
+</html>
