@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- This website is currently hosted at https://zhoumark123.github.io/ -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -47,6 +48,7 @@
         
     </div>
 
+
     <h3>Enter Convolution Kernel:</h3>
     <table id="kernelTable">
         <tr>
@@ -81,6 +83,10 @@
         let imageUploaded = false;
         const inputImage = document.getElementById('inputImage');
         const originalCanvas = document.getElementById('originalCanvas');
+        // const context_default = originalCanvas.getContext('2d');
+        // const img = new Image();        
+        // img.src = 'https://t4.ftcdn.net/jpg/01/77/47/67/360_F_177476718_VWfYMWCzK32bfPI308wZljGHvAUYSJcn.jpg';        
+        // img.onload = () => {context_default.drawImage(img, 0, 0);};
         const convolvedCanvas = document.getElementById('convolvedCanvas');
         const kernelTable = document.getElementById('kernelTable');
         const magnifiedCanvas = document.getElementById('magnifiedCanvas');
@@ -265,7 +271,31 @@
             }
             return [magnifiedCtx, magnifiedImageData]
         }
-        
+        function loadDefaultImage() {
+            const ctx = originalCanvas.getContext('2d');
+            const img = new Image();
+            img.src = 'https://t4.ftcdn.net/jpg/01/77/47/67/360_F_177476718_VWfYMWCzK32bfPI308wZljGHvAUYSJcn.jpg';
+            img.crossOrigin = 'Anonymous';
+            img.onload = () => {
+                const fixedWidth = 600;
+                const aspectRatio = img.height / img.width;
+                const fixedHeight = fixedWidth * aspectRatio;
+
+                originalCanvas.width = fixedWidth;
+                originalCanvas.height = fixedHeight;
+                ctx.drawImage(img, 0, 0);
+                convolvedCanvas.width = img.width;
+                convolvedCanvas.height = img.height;
+                hoverCanvas.width = originalCanvas.width;
+                hoverCanvas.height = originalCanvas.height;
+                hoverCanvas.style.pointerEvents = 'none';
+            }
+            resizedImageData = resizeImage(img, targetWidth, targetHeight);
+            imageUploaded = true;
+        }
+
+        window.addEventListener('load', loadDefaultImage);
+
         inputImage.addEventListener('change', (e) => {
             const file = e.target.files[0];
             const ctx = originalCanvas.getContext('2d');
