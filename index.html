@@ -83,10 +83,6 @@
         let imageUploaded = false;
         const inputImage = document.getElementById('inputImage');
         const originalCanvas = document.getElementById('originalCanvas');
-        // const context_default = originalCanvas.getContext('2d');
-        // const img = new Image();        
-        // img.src = 'https://t4.ftcdn.net/jpg/01/77/47/67/360_F_177476718_VWfYMWCzK32bfPI308wZljGHvAUYSJcn.jpg';        
-        // img.onload = () => {context_default.drawImage(img, 0, 0);};
         const convolvedCanvas = document.getElementById('convolvedCanvas');
         const kernelTable = document.getElementById('kernelTable');
         const magnifiedCanvas = document.getElementById('magnifiedCanvas');
@@ -283,7 +279,7 @@
 
                 originalCanvas.width = fixedWidth;
                 originalCanvas.height = fixedHeight;
-                ctx.drawImage(img, 0, 0);
+                ctx.drawImage(img, 0, 0, fixedWidth, fixedHeight);
                 convolvedCanvas.width = img.width;
                 convolvedCanvas.height = img.height;
                 hoverCanvas.width = originalCanvas.width;
