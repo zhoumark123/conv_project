@@ -280,8 +280,8 @@
                 originalCanvas.width = fixedWidth;
                 originalCanvas.height = fixedHeight;
                 ctx.drawImage(img, 0, 0, fixedWidth, fixedHeight);
-                convolvedCanvas.width = img.width;
-                convolvedCanvas.height = img.height;
+                convolvedCanvas.width = fixedWidth;
+                convolvedCanvas.height = fixedHeight;
                 hoverCanvas.width = originalCanvas.width;
                 hoverCanvas.height = originalCanvas.height;
                 hoverCanvas.style.pointerEvents = 'none';
@@ -468,12 +468,8 @@
         }
         async function animateConvolution(magnifiedCtx, magnifiedImageData) {
             const kernel = getKernel();
-           
-            //const originalCtx = originalCanvas.getContext('2d');
-            //const originalImageData = originalCtx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
-            //const originalImageData = resizedImageData
-            //const magnifiedCtx = magnifiedCanvas.getContext('2d');
-            //const magnifiedImageData = magnifiedCtx.getImageData(0, 0, magnifiedCanvas.width, magnifiedCanvas.height);
+            const kh = kernel.length;
+            const kw = kernel[0].length;
             const resultCtx = resultCanvas.getContext('2d');
             function drawGrid(ctx, canvasWidth, canvasHeight, gridSize, gridColor = 'black') {
                 ctx.beginPath();
@@ -486,21 +482,13 @@
                 ctx.strokeStyle = gridColor;
                 ctx.stroke();
             }
+            const khHalf = Math.floor(kh / 2);
+            const kwHalf = Math.floor(kw / 2);
             // Draw grid lines
-            //drawGrid(magnifiedCtx, magnifiedCanvas.width, magnifiedCanvas.height, magnifiedPixelSize);
             drawResultGrid();
             for (let y = 0; y < (hoverSize - 2); y++) { //change
                 for (let x = 0; x < (hoverSize - 2); x++) {
-                    //magnifiedCtx.clearRect(0, 0, magnifiedCanvas.width, magnifiedCanvas.height);
-
-                    // Draw magnified region,
-                    // for (let i = 0; i < 10; i++) {
-                    //     for (let j = 0; j < 10; j++) {
-                    //         const pixelColor = magnifiedCtx.getImageData(x + j, y + i, 1, 1); //originalCtx
-                    //         magnifiedCtx.fillStyle = `rgba(${pixelColor.data[0]}, ${pixelColor.data[1]}, ${pixelColor.data[2]}, ${pixelColor.data[3] / 255})`;
-                    //         magnifiedCtx.fillRect(j * magnifiedPixelSize, i * magnifiedPixelSize, magnifiedPixelSize, magnifiedPixelSize);
-                    //     }
-                    // }
+                    
                     drawGrid(magnifiedCtx, magnifiedCanvas.width, magnifiedCanvas.height, magnifiedPixelSize);
 
                     // Draw sliding window
